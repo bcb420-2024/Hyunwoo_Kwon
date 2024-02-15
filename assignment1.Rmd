@@ -1,0 +1,143 @@
+---
+title: "BCB420 Assignment 1"
+author: "Hyunwoo Kwon"
+date: "2024/02/11"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '2'
+    df_print: paged
+  html_notebook:
+    toc: yes
+    toc_depth: 2
+bibliography: a1_references.bib
+---
+
+## Introduction
+
+The chose dataset comes from "Intracellular angiopoietin-1 promotes TKI-resistance via activation of JAK/STAT5 pathway in chronic myeloid leukemia" which was published in March, 2023 by Ma D et. al. The study aimed to investigate the role of angiopoietin-1(ANG-1) in drug resistance in chronic myeloid leukemia (CML), particulary its impact on resistance to BCR-ABL tyrosine kinase inhibitors and other chemotherapeutics. Researchers focused on understanding how overexpression of intracellular and secretory ANG-1 contributes to CML drug resistance, examining the effects of ANG-1 silencing in cell lines and animal models.
+
+## Downloading the packages
+```{r, message=FALSE}
+
+if (!requireNamespace("BiocManager", quietly = TURE)){
+  install.packages("BiocManager")}
+
+if (!requireNamespace("GEOmetadb", quietly = FALSE)){
+  BiocManager::install("GEOmetadb")}
+
+if (!requireNamespace("knitr", quietly = TURE)){
+  install.packages("knitr")}
+
+if (!requireNamespace("edgeR", quietly = TURE)){
+  BiocManager::instal("edgeR")}
+
+if (!requireNamespace("biomaRt", quietly = TURE)){
+  BiocManager::instal("biomaRt")}
+
+if (!requireNamespace("DBI", quietly = TURE)){
+  install.packages("DBI")}
+
+if (!requireNamespace("GEOquery", quietly = TURE)){
+  BiocManager::instal("GEOquery")}
+
+library(GEOquery)
+library(knitr)
+library(edgeR)
+library(biomaRt)
+library(dplyr)
+library(purrr)
+
+```
+
+## Downloading the data
+
+We use the GEOquery package (@R-GEOquery) to get the datasets.
+
+```{r}
+geo_id <- "GSE208312"
+gse <- GEOquery::getGEO(geo_id, GSEMatrix = FALSE)
+gse@header$summary
+```
+
+Raw datasets are now loaded from the supplementary files.
+
+```{r}
+
+# Downloads the data
+
+# Save to current directory
+dir_download <- file.path(getwd(), "data")
+if(!dir.exists(dir_download)){
+  dir.create(dir_download)
+}
+
+# Getting the name of the supplementary file
+suppfile = GEOquery::getGEOSuppFiles(geo_id,
+                                     makeDirectory = FALSE,
+                                     fetch_files = FALSE)
+suppfile$fname
+raw_path <- file.path(dir_download, suppfile$fname)
+
+#Check to see if the file exists already before you download them 
+if(length(missing_files)>0){
+  for(i in 1:length(missing_files)){
+    suppfile = getGEOSuppFiles(geo_id,
+                               makeDirectory = FALSE,
+                               baseDir = dir_download,
+                               fetch_files = TRUE)
+  }
+}
+untar(raw_path, exdir=dir_download)
+```
+
+## Load and read the data
+
+```{r}
+# Creating relative path for the downloaded dataset file
+data_path <- paste(dir_download, "/GSE208312/GSE208312_all.counts.txt.gz", sep="")
+# Reading the data into a table
+ANG_1_data <- read.table(data_path, header = TRUE, check.names = TRUE)
+# Check if the dataset is complete through inspecting the dimensions.
+dim(ANG_1_data)
+```
+
+Now we can see that the dataset size is 54,261 genes with 11 rows. To see if column names:
+
+```{r}
+kableExtra::kable(ANG_1_data[1:14,], format = "html")
+```
+## Clean the Data
+
+```{r}
+counts_name <- function(file_path, sample_name){
+  df <- fread(file_path, select = c("geo_id", "counts"))
+  df$sample <- sample_name
+  return(df)
+}
+
+```
+
+
+## Normalization
+Now it is turn to normalize our data
+
+
+
+
+What are the control and test conditions of the database?
+The dataset compares bone marrow mononuclear cells from newly diagnosed or relapsed CML patients with and without drug treatment.
+
+How many samples in each of the conditions of your datasets?
+There are 14 samples in total, with replicates for both newly diagnosed and relapsed patients.
+
+Were there expression values that were not unique for specific genes? How were you handle these?
+In general, I was not able to spot the expression values that were not unique for specific genes. 
+
+Were there expression values that could not be mapped to currernt HUGO symbols?
+
+Were there any outliers in your dataset? How were they handled in the originating paper? How many outliers were removed?
+
+How did you handle replicates?
+
+What is the final coverage of your dataset?
