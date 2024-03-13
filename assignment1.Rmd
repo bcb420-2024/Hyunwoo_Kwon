@@ -10,7 +10,6 @@ output:
   html_notebook:
     toc: yes
     toc_depth: 2
-bibliography: a1_references.bib
 ---
 
 ## Introduction
@@ -20,25 +19,25 @@ The chose dataset comes from "Intracellular angiopoietin-1 promotes TKI-resistan
 ## Downloading the packages
 ```{r, message=FALSE}
 
-if (!requireNamespace("BiocManager", quietly = TURE)){
+if (!requireNamespace("BiocManager", quietly = FALSE)){
   install.packages("BiocManager")}
 
 if (!requireNamespace("GEOmetadb", quietly = FALSE)){
   BiocManager::install("GEOmetadb")}
 
-if (!requireNamespace("knitr", quietly = TURE)){
+if (!requireNamespace("knitr", quietly = FALSE)){
   install.packages("knitr")}
 
-if (!requireNamespace("edgeR", quietly = TURE)){
+if (!requireNamespace("edgeR", quietly = FALSE)){
   BiocManager::instal("edgeR")}
 
-if (!requireNamespace("biomaRt", quietly = TURE)){
-  BiocManager::instal("biomaRt")}
+if (!requireNamespace("biomaRt", quietly = FALSE)){
+  BiocManager::install("biomaRt")}
 
-if (!requireNamespace("DBI", quietly = TURE)){
+if (!requireNamespace("DBI", quietly = FALSE)){
   install.packages("DBI")}
 
-if (!requireNamespace("GEOquery", quietly = TURE)){
+if (!requireNamespace("GEOquery", quietly = FALSE)){
   BiocManager::instal("GEOquery")}
 
 library(GEOquery)
@@ -54,62 +53,135 @@ library(purrr)
 
 We use the GEOquery package (@R-GEOquery) to get the datasets.
 
-```{r}
-geo_id <- "GSE208312"
-gse <- GEOquery::getGEO(geo_id, GSEMatrix = FALSE)
+```{r, message=FALSE}
+geo_id <- "GSE236504"
+#GEO dataset downloading
+gse <- getGEO(geo_id, GSEMatrix = FALSE)
+# Information about platform
+current_gpl <- names(GPLList(gse))[1]
+current_gpl_info <- Meta(getGEO(current_gpl))
 gse@header$summary
 ```
 
+**GEO ID:** `r geo_id`
+
+**Dataset Name:** Transcription factor ATMIN facilitates chemoresistance in nasopharyngeal carcinoma
+
+**Platform Title:** `r current_gpl_info$title`
+
+**Technology:** `r current_gpl_info$technology`
+
+**Submission Date:** `r current_gpl_info$submission_date`
+
+**Last Update Date:** `r current_gpl_info$last_update_date`
+
+**Organism:** `r current_gpl_info$organism`
+
+**Number of GEO datasets that use this technology:** `length(current_gpl_info$series_id)`
+
+**Number of GEO samples that use this technology:** `length(current_gpl_info$sample_id))`
+
 Raw datasets are now loaded from the supplementary files.
 
-```{r}
+```{r, message=FALSE}
 
 # Downloads the data
+#Get the name of the supplementary files
+sfilenames = getGEOSuppFiles(geo_id, fetch_files = FALSE)
+sfilenames$fname
+#file to choose
+data_filename <- sfilenames$fname[2] 
+data_filename
 
+#location to download and store files
 # Save to current directory
-dir_download <- file.path(getwd(), "data")
-if(!dir.exists(dir_download)){
-  dir.create(dir_download)
-}
-
-# Getting the name of the supplementary file
-suppfile = GEOquery::getGEOSuppFiles(geo_id,
-                                     makeDirectory = FALSE,
-                                     fetch_files = FALSE)
-suppfile$fname
-raw_path <- file.path(dir_download, suppfile$fname)
-
-#Check to see if the file exists already before you download them 
-if(length(missing_files)>0){
+dir_download <- file.path(getwd(), "Data")
+missing_files <- sfilenames$fname[!unlist(
+  lapply(sfilenames$fname, FUN=function(x){
+    file.exists(
+      file.path(dir_download,geo_id,x))}))]
+if(length(missing_files) >0){
   for(i in 1:length(missing_files)){
-    suppfile = getGEOSuppFiles(geo_id,
-                               makeDirectory = FALSE,
-                               baseDir = dir_download,
-                               fetch_files = TRUE)
+    sfiles = getGEOSuppFiles(geo_id,
+                             filter_regex = missing_files[i],
+                             baseDir = dir_download,
+                             fetch_files = TRUE)
   }
 }
-untar(raw_path, exdir=dir_download)
+
 ```
 
 ## Load and read the data
 
-```{r}
+```{r, message=FALSE}
 # Creating relative path for the downloaded dataset file
-data_path <- paste(dir_download, "/GSE208312/GSE208312_all.counts.txt.gz", sep="")
 # Reading the data into a table
-ANG_1_data <- read.table(data_path, header = TRUE, check.names = TRUE)
+raw_data <- read.table(file.path(dir_download,geo_id,data_filename), header = TRUE, check.names = TRUE)
 # Check if the dataset is complete through inspecting the dimensions.
-dim(ANG_1_data)
+dim(raw_data)
+
+nrow(raw_data)
+
 ```
 
 Now we can see that the dataset size is 54,261 genes with 11 rows. To see if column names:
 
 ```{r}
-kableExtra::kable(ANG_1_data[1:14,], format = "html")
+kableExtra::kable(raw_data[1:14,], format = "html")
+colnames(raw_data)
 ```
+
+### Filtering Rows with Low Counts
+
+# Each column represent the 
+# Further Investigation
+```{r, message=FALSE}
+gse@gsms[[1]]@header$characteristics_ch1
+gse@gsms[[1]]@header$title
+gse@gsms[[1]]@header$geo_accession
+list_of_samples <- gse@gsms
+samples_type <- do.call(rbind,
+                       lapply(list_of_samples,
+                              FUN=function(x){
+                                c(x@header$title,
+                                  x@header$characteristics_ch1)
+                                  }
+                              )
+                      )
+colnames(samples_type) <- c("title",
+                           "cell line", "cell type","genotype")
+samples_type[,"cell line"] <- gsub(samples_type['cell line'],
+                                  pattern = "cell line: ",
+                              replacement = "")
+samples_type[,"cell type"] <- gsub(samples_type['cell type'],
+                                  pattern = "cell type: ",
+                              replacement = "")
+samples_type[,"genotype"] <- gsub(samples_type['genotype'],
+                                  pattern = "genotype: ",
+                              replacement = "")
+
+kable(samples_type[1:6,], format = "html")
+```
+# Converting to HUGO symbols
+```{r}
+summarized_gene_counts <- sort(table(raw_data$HUGO_symbol),
+                               decreasing = TRUE)
+kable(summarized_gene_counts[which(summarized_gene_counts>1)[1:10]],
+      format = "html")
+```
+#Define the groups
+```{r}
+samples <- data.frame(lapply(colnames(raw_data)[2:6], 
+                             FUN=function(x){unlist(strsplit(x, split = "kd"))}))
+
+colnames(samples) <- colnames(raw_data)[2:6]
+samples <- data.frame(t(samples))
+
 ## Clean the Data
+```
 
 ```{r}
+
 counts_name <- function(file_path, sample_name){
   df <- fread(file_path, select = c("geo_id", "counts"))
   df$sample <- sample_name
@@ -121,7 +193,42 @@ counts_name <- function(file_path, sample_name){
 
 ## Normalization
 Now it is turn to normalize our data
+```{r eval=TRUE}
+numeric_data <- raw_data[, -1]  # Adjust as needed if there are multiple non-numeric columns
 
+# Apply log2 transformation to numeric data only
+data2plot <- log2(numeric_data + 1)  # Adding 1 to avoid log2(0)
+
+boxplot(data2plot,xlab="Samples", ylab = "log2 CPM",
+        las = 2, cex = 0.5, cex.lab = 0.5,
+        cex.axis = 0.5, main = "RNASeq Samples")
+abline(h = median(apply(data2plot, 2, median)),
+       col = "green", lwd = 0.6, lty = "dashed")
+```
+```{r eval=TRUE}
+par(mfrow=c(1,2))
+#Density Plot for original count data
+counts_density <- apply(log2(edgeR::cpm(raw_data[,2:7])), 2, density)
+
+#Calculate the limits across all the samples
+xlim <- 0; ylim <- 0
+for (i in 1:length(counts_density)) {
+  xlim <- range(c(xlim, counts_density[[i]]$x)); 
+  ylim <- range(c(ylim, counts_density[[i]]$y))
+}
+cols <- rainbow(length(counts_density))
+ltys <- rep(1, length(counts_density))
+#plot the first density plot to initialize the plot
+plot(counts_density[[1]], xlim=xlim, ylim=ylim, type="n", 
+     ylab="Smoothing density of log2-CPM", main="Original Count", cex.lab = 0.8)
+#plot each line
+for (i in 1:length(counts_density)) lines(counts_density[[i]], col=cols[i])
+#create legend
+legend("topright", colnames(data2plot),  
+       col=cols, lty=ltys, cex=0.5, 
+       border ="blue",  text.col = "green4", 
+       merge = TRUE, bg = "gray90")
+```
 
 
 
