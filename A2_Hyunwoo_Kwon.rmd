@@ -1,0 +1,167 @@
+---
+title: "Assignment2"
+output: html_document
+date: "2024-03-13"
+name: "Hyunwoo Kwon"
+Student#: "1004902661"
+---
+## Summary of A1
+In A1, the dataset GSE236504 was downloaded, cleaned, and normalized for analysis. 
+
+
+```{r setup, include=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE)){
+  install.packages("BiocManager")}
+
+if (!requireNamespace("GEOmetadb", quietly = TRUE)){
+  BiocManager::install("GEOmetadb")}
+
+if (!requireNamespace("GEOmetadb", quietly = TRUE)){
+  install.packages("knitr")}
+
+if (!requireNamespace("edgeR", quietly = TRUE)){
+  BiocManager::install("edgeR")}
+
+if (!requireNamespace("biomaRt", quietly = TRUE)){
+  BiocManager::install("biomaRt")}
+
+if (!requireNamespace("DBI", quietly = TRUE)){
+  install.packages("DBI")}
+
+if (!requireNamespace("GEOquery", quietly = TRUE)){
+  BiocManager::install("GEOquery")}
+
+library(GEOquery)
+library(knitr)
+library(edgeR)
+library(biomaRt)
+library(dplyr)
+library(purrr)
+library(ComplexHeatmap)
+library(ggplot2)
+library(circlize)
+library(gprofiler2)
+library(magrittr)
+```
+
+## 1. Differential Gene Expression
+Firt step is to perform differential gene expression analysis. 
+### Recall normalized data that was saved from the A1.
+
+```{r results = "hide"}
+# ensures user does not need to manually run the previous notebook
+rmarkdown::render("../hyunwoo_kwon/assignment1.Rmd")
+```
+```{r eval=TRUE}
+# read the file containing information about sample types 
+samples_type <- read.table(file=file.path("../hyunwoo_kwon/data/samples_type.csv"),
+                                    header = TRUE,sep = "\t",
+                                    stringsAsFactors = FALSE,
+                                    check.names=FALSE)
+
+# read the file containing normalized and filtered counts 
+normalized_counts <- read.table(file=file.path(
+  "../hyunwoo_kwon/GSE236504_normalized_filtered_raw_counts.txt"
+  ),
+                                    header = TRUE,sep = "\t",
+                                    stringsAsFactors = FALSE,
+                                    check.names=FALSE)
+dim(normalized_counts)
+```
+### MDS plot
+Look at the MDS ploy
+
+```{r eval=TRUE}
+# Ensure the edgeR library is loaded
+library(edgeR)
+dim(normalized_counts) # Shows dimensions of the counts matrix
+length(samples_type$t) # Shows the number of sample labels
+
+
+# Determine unique treatment types for color mapping
+high_ATMIN <- unique(samples_type$treatment)
+colors <- c("cyan", "red", "darkgreen")[1:length(high_ATMIN)]
+
+# Plot multidimensional scaling (MDS) plot
+plotMDS(d, labels=NULL, pch=1, col=colors[factor(samples_type$treatment)])
+
+# Add legend and title to the plot
+title(main="MDS Plot by Patients")
+
+```
+## Model Design
+```{r eval=TRUE}
+model_design <- model.matrix(~samples_type$title)
+model_design[1:5,]
+
+```
+
+
+```{r eval=TRUE}
+
+library(limma)
+library(Biobase)
+
+# Assuming 'normalized_counts' is already defined
+# Create the expression matrix
+expressionMatrix <- as.matrix(normalized_counts[,1:ncol(normalized_counts)])
+rownames(expressionMatrix) <- normalized_counts$ensembl_gene_id
+colnames(expressionMatrix) <- colnames(normalized_counts)[1:ncol(normalized_counts)]
+
+minimalSet <- ExpressionSet(assayData = expressionMatrix)
+# Assuming you have a way to define the groups for your samples, e.g., from metadata
+# This should be a vector with one entry per column in `expressionMatrix`
+# Example: groups <- c("Control", "Control", "Treatment", "Treatment")
+
+# Now, create your model design matrix based on actual groups
+# This needs to be done based on your experimental design
+# For simplicity, let's assume 'groups' is already defined as above
+
+d <- estimateDisp(d, model_design)
+fit <- lmFit(minimalSet, model_design)
+
+```
+## P-Values
+```{r}
+keep <- rowSums(normalized_counts > 1) >= 3
+normalized_counts_filtered <- normalized_counts[keep,]
+fit <- lmFit(normalized_counts_filtered, model_design)
+fit2 <- eBayes(fit, trend=TRUE)
+topfit <- topTable(fit2, coef=ncol(model_design), adjust.method="BH", number=nrow(normalized_counts_filtered))
+# Adding row names as a column for merging
+normalized_counts_filtered$Gene <- rownames(normalized_counts_filtered)
+topfit$Gene <- rownames(topfit)
+
+# Merging based on the gene identifiers
+output_hits <- merge(normalized_counts_filtered[, c("Gene", 1:2)], topfit, by="Gene", all.y=TRUE)
+
+# Ordering by P.Value
+output_hits <- output_hits[order(output_hits$P.Value),]
+
+```
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+d <- DGEList(counts=filtered_data_matrix, group = samples_type$cell type)
+```
+
+## References
+\setlength{\parindent}{-0.2in}
+\setlength{\leftskip}{0.2in}
+\setlength{\parskip}{8pt}
+\noindent
+
+Davis, S. and Meltzer, P. S. GEOquery: a bridge between the Gene Expression 
+Omnibus (GEO) and BioConductor. Bioinformatics, 2007, 14, 1846-1847
+
+Barrett, T., Wilhite, S. E., Ledoux, P., Evangelista, C., Kim, I. F., Tomashevsky, M., Marshall, K. A., Phillippy, K. H., Sherman, P. M., Holko, M., Yefanov, A., Lee, H., Zhang, N., Robertson, C. L., Serova, N., Davis, S., & Soboleva, A. (2013). NCBI GEO: Archive for functional genomics data sets—update. Nucleic Acids Research, 41(D1), D991–D995. https://doi.org/10.1093/nar/gks1193
+
+Fang, X., Li, Q., Lin, J., Huang, C., Huang, S., Tan, X., He, S., Zhu, X., Li, J., Gong, S., Qiao, H., Li, Y., Liu, N., Ma, J., Zhao, Y., & Tang, L. (2024). Transcription factor ATMIN facilitates chemoresistance in nasopharyngeal carcinoma. Cell Death & Disease, 15(2), 1-11. https://doi.org/10.1038/s41419-024-06496-x
+
+
+
