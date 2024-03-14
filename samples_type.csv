@@ -1,0 +1,7 @@
+"title","cell line","cell type","genotype"
+"si-ATMIN, rep1","HONE-1","nasopharyngeal carcinoma cell line","ATMIN knockdown"
+"si-ATMIN, rep2","HONE-1","nasopharyngeal carcinoma cell line","ATMIN knockdown"
+"si-ATMIN, rep3","HONE-1","nasopharyngeal carcinoma cell line","ATMIN knockdown"
+"si-NC, rep1","HONE-1","nasopharyngeal carcinoma cell line","WT"
+"si-NC, rep2","HONE-1","nasopharyngeal carcinoma cell line","WT"
+"si-NC, rep3","HONE-1","nasopharyngeal carcinoma cell line","WT"
